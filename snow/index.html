@@ -22,10 +22,6 @@
   .card { background:#fff; border-radius:14px; padding:16px; box-shadow:0 1px 3px #0002; margin-bottom:14px; }
   label { display:block; font-weight:600; margin:12px 0 6px; }
   input[type=text], input[type=tel] { width:100%; font-size:19px; padding:12px; border:1px solid #bbb; border-radius:10px; }
-  .roles { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .roles button { font-size:16px; padding:14px 8px; border-radius:10px; border:2px solid #ccc; background:#fff; font-weight:600; }
-  .roles button.on { border-color:var(--g); background:#e6f2ed; }
-  .roles button span { display:block; font-weight:400; color:var(--mut); font-size:14px; }
   .big { display:block; width:100%; font-size:26px; font-weight:800; color:#fff; border:0; border-radius:16px; padding:28px 10px; margin:12px 0; }
   .big:disabled { opacity:.45; }
   .in { background:var(--in); } .out { background:var(--out); }
@@ -58,8 +54,6 @@
     <label for="first" data-t="first"></label><input id="first" type="text" autocomplete="given-name" maxlength="60">
     <label for="last" data-t="last"></label><input id="last" type="text" autocomplete="family-name" maxlength="60">
     <label for="phone" data-t="phone"></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="630-555-1234" maxlength="20">
-    <label data-t="role"></label>
-    <div class="roles" id="reg-roles"></div>
     <button class="primary" id="reg-save" data-t="save"></button>
   </section>
 
@@ -68,8 +62,6 @@
     <div class="card">
       <div class="hello" id="hello"></div>
       <div class="status" id="status"></div>
-      <label data-t="role_today"></label>
-      <div class="roles" id="home-roles"></div>
       <button class="big in" id="btn-in" data-t="clock_in"></button>
       <button class="big out" id="btn-out" data-t="clock_out"></button>
     </div>
@@ -97,9 +89,7 @@ const T = {
   es: {
     subtitle: "Reloj de la cuadrilla de nieve",
     reg_title: "Primera vez: escribe tus datos",
-    first: "Nombre", last: "Apellido", phone: "Celular", role: "Trabajo",
-    role_today: "Trabajo de hoy",
-    shoveler: "Palero", plow: "Chofer de quitanieves", per_hr: "/hora",
+    first: "Nombre", last: "Apellido", phone: "Celular",
     save: "Guardar", clock_in: "Registrar ENTRADA", clock_out: "Registrar SALIDA",
     not_me: "No soy yo (cambiar persona)",
     hello: (n) => `Hola, ${n}`,
@@ -129,9 +119,7 @@ const T = {
   en: {
     subtitle: "Snow crew time clock",
     reg_title: "First time: enter your info",
-    first: "First name", last: "Last name", phone: "Cell phone", role: "Job",
-    role_today: "Today's job",
-    shoveler: "Shoveler", plow: "Plow driver", per_hr: "/hr",
+    first: "First name", last: "Last name", phone: "Cell phone",
     save: "Save", clock_in: "Clock IN", clock_out: "Clock OUT",
     not_me: "Not me (switch person)",
     hello: (n) => `Hi, ${n}`,
@@ -164,7 +152,7 @@ let lang = localStorage.getItem("tc_lang") || "es";
 let worker = JSON.parse(localStorage.getItem("tc_worker") || "null");
 let device = localStorage.getItem("tc_device");
 if (!device) { device = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); localStorage.setItem("tc_device", device); }
-let openShift = null, regRole = "shoveler", homeRole = null, serverSkew = 0, photoData = null, gpsPromise = null, busy = false;
+let openShift = null, serverSkew = 0, photoData = null, gpsPromise = null, busy = false;
 const t = (k, ...a) => { const v = T[lang][k]; return typeof v === "function" ? v(...a) : v; };
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString(lang === "es" ? "es-MX" : "en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
 
@@ -172,20 +160,7 @@ function applyLang() {
   document.documentElement.lang = lang;
   $("lang-es").classList.toggle("on", lang === "es"); $("lang-en").classList.toggle("on", lang === "en");
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
-  renderRoles(); renderHome(); tick();
-}
-function renderRoles() {
-  for (const [boxId, cur, set] of [["reg-roles", regRole, (r) => regRole = r], ["home-roles", homeRole, (r) => homeRole = r]]) {
-    const box = $(boxId); box.innerHTML = "";
-    for (const [r, rate] of [["shoveler", 30], ["plow", 35]]) {
-      const b = document.createElement("button"); b.type = "button";
-      b.className = cur === r ? "on" : "";
-      b.textContent = t(r);
-      const s = document.createElement("span"); s.textContent = `$${rate}${t("per_hr")}`; b.appendChild(s);
-      b.onclick = () => { set(r); renderRoles(); };
-      box.appendChild(b);
-    }
-  }
+  renderHome(); tick();
 }
 function show(id) { for (const s of ["reg", "home", "selfie"]) $(s).classList.toggle("hidden", s !== id); }
 function msg(text, kind = "ok") { const m = $("msg"); m.innerHTML = ""; if (!text) return; const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text; m.appendChild(d); m.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
@@ -238,7 +213,7 @@ async function refresh() {
   if (!worker) { show("reg"); return; }
   show("home"); renderHome();
   const j = await api({ action: "status", worker_id: worker.id });
-  if (j.ok) { worker = { ...worker, ...j.worker }; localStorage.setItem("tc_worker", JSON.stringify(worker)); openShift = j.open_shift; if (!homeRole) homeRole = (openShift && openShift.role) || worker.role; renderRoles(); renderHome(); }
+  if (j.ok) { worker = { ...worker, ...j.worker }; localStorage.setItem("tc_worker", JSON.stringify(worker)); openShift = j.open_shift; renderHome(); }
   else if (j.code === "unknown_worker") { localStorage.removeItem("tc_worker"); worker = null; msg(t("unknown_worker"), "bad"); show("reg"); }
 }
 
@@ -247,12 +222,12 @@ $("reg-save").onclick = async () => {
   if (!first || !last) return msg(t("need_name"), "bad");
   if (phone.length !== 10) return msg(t("bad_phone"), "bad");
   msg(t("working"), "warn");
-  const j = await api({ action: "register", first_name: first, last_name: last, phone, role: regRole });
+  const j = await api({ action: "register", first_name: first, last_name: last, phone });
   if (!j.ok) return msg(errText(j), "bad");
   worker = j.worker; localStorage.setItem("tc_worker", JSON.stringify(worker));
-  openShift = j.open_shift; homeRole = regRole;
+  openShift = j.open_shift;
   msg(j.existing ? t("welcome_back") : "", "ok"); if (!j.existing) msg("");
-  show("home"); renderRoles(); renderHome();
+  show("home"); renderHome();
 };
 
 $("btn-in").onclick = () => {
@@ -282,12 +257,12 @@ async function doClockIn(withPhoto) {
   msg(t("getting_gps"), "warn");
   const g = await (gpsPromise || getGps());
   msg(t("working"), "warn");
-  const body = { action: "clock_in", worker_id: worker.id, role: homeRole || worker.role, ...gpsBody(g) };
+  const body = { action: "clock_in", worker_id: worker.id, ...gpsBody(g) };
   if (withPhoto && photoData) body.photo = photoData; else body.photo_error = "skipped";
   const j = await api(body);
   busy = false; $("confirm-in").disabled = false; $("nophoto").disabled = false;
   show("home");
-  if (j.ok) { openShift = { id: j.shift.id, clock_in_at: j.shift.clock_in_at, role: j.shift.role }; msg(t("in_ok", fmtTime(j.shift.clock_in_at)), "ok"); flagMsgs(j.shift.flags); }
+  if (j.ok) { openShift = { id: j.shift.id, clock_in_at: j.shift.clock_in_at }; msg(t("in_ok", fmtTime(j.shift.clock_in_at)), "ok"); flagMsgs(j.shift.flags); }
   else { if (j.code === "already_in") openShift = { clock_in_at: j.clock_in_at }; msg(errText(j), j.code === "already_in" ? "warn" : "bad"); }
   renderHome();
 }
@@ -305,7 +280,7 @@ $("btn-out").onclick = async () => {
   else { if (j.code === "not_in") openShift = null; msg(errText(j), j.code === "not_in" ? "warn" : "bad"); }
   renderHome();
 };
-$("notme").onclick = () => { if (confirm(t("confirm_reset"))) { localStorage.removeItem("tc_worker"); worker = null; openShift = null; homeRole = null; msg(""); show("reg"); } };
+$("notme").onclick = () => { if (confirm(t("confirm_reset"))) { localStorage.removeItem("tc_worker"); worker = null; openShift = null; msg(""); show("reg"); } };
 $("lang-es").onclick = () => { lang = "es"; localStorage.setItem("tc_lang", lang); applyLang(); };
 $("lang-en").onclick = () => { lang = "en"; localStorage.setItem("tc_lang", lang); applyLang(); };
 document.addEventListener("visibilitychange", () => { if (!document.hidden && worker) refresh(); });

@@ -62,11 +62,11 @@
   <section><h2>Missing clock-out (open more than <span id="lsh"></span> h) <span id="n-miss" class="muted"></span></h2><div id="miss"></div></section>
   <section><h2>Totals per person (selected range)</h2><div id="totals"></div></section>
   <section><h2>All shifts (selected range)</h2><div id="shifts"></div></section>
+  <section><h2>Workers and pay role</h2><p class="muted">Role is optional and only set here. Hours always count; rate and estimated pay show only once a role is set (Shoveler $30/hr, Plow driver $35/hr).</p><div id="workers"></div></section>
   <section>
     <h2>Add a missed shift</h2>
     <div class="row">
       <select id="add-w"></select>
-      <select id="add-role"><option value="">Worker's role</option><option value="shoveler">Shoveler $30</option><option value="plow">Plow driver $35</option></select>
       <label>In <input type="datetime-local" id="add-in"></label>
       <label>Out <input type="datetime-local" id="add-out"></label>
       <input id="add-note" placeholder="Required note (why)" style="min-width:240px">
@@ -107,7 +107,7 @@ async function api(body, raw = false) {
 function showLogin(e) { $("app").classList.add("hidden"); $("login").classList.remove("hidden"); $("key-err").textContent = e || ""; }
 const fmt = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 const toLocalInput = (iso) => { if (!iso) return ""; const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso)).map((x) => [x.type, x.value])); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
-const roleL = (r) => r === "plow" ? "Plow driver" : "Shoveler";
+const roleL = (r) => r === "plow" ? "Plow driver $35" : r === "shoveler" ? "Shoveler $30" : '<span class="muted">not set</span>';
 function chips(s) {
   const out = [];
   for (const f of s.in_flags || []) out.push(`<span class="chip ${f === "admin_added" ? "" : "warn"}">in: ${esc(f)}</span>`);
@@ -125,7 +125,7 @@ function shiftTable(rows, opts = {}) {
   let h = `<table><tr><th>Photo</th><th>Name</th><th>Phone</th><th>Role</th><th>In (CT)</th><th>Out (CT)</th><th class="num">Hours</th><th class="num">Est. pay</th><th>In GPS</th><th>Out GPS</th><th>Flags</th><th></th></tr>`;
   for (const s of rows) {
     const hrs = s.hours != null ? s.hours.toFixed(2) : (s.open_hours != null ? `<span class="muted">${s.open_hours.toFixed(1)} so far</span>` : "open");
-    h += `<tr id="r-${s.id}"><td>${photo(s)}</td><td>${esc(s.name)}</td><td>${phoneF(s.phone)}</td><td>${roleL(s.role)} $${s.rate}</td><td>${fmt(s.clock_in_at)}</td><td>${s.clock_out_at ? fmt(s.clock_out_at) : '<span class="chip bad">no clock-out</span>'}</td><td class="num">${hrs}</td><td class="num">${s.est_pay != null ? "$" + s.est_pay.toFixed(2) : ""}</td><td>${map(s.in_lat, s.in_lng, s.in_distance_m)}</td><td>${map(s.out_lat, s.out_lng, s.out_distance_m)}</td><td class="wrap">${chips(s)}${(s.edits || []).map((e) => `<div class="muted" style="font-size:12px">${esc(e.at_ct)}: ${esc(e.note)}</div>`).join("")}</td><td><button data-fix="${s.id}">Fix</button></td></tr>`;
+    h += `<tr id="r-${s.id}"><td>${photo(s)}</td><td>${esc(s.name)}</td><td>${phoneF(s.phone)}</td><td>${roleL(s.role)}</td><td>${fmt(s.clock_in_at)}</td><td>${s.clock_out_at ? fmt(s.clock_out_at) : '<span class="chip bad">no clock-out</span>'}</td><td class="num">${hrs}</td><td class="num">${s.est_pay != null ? "$" + s.est_pay.toFixed(2) : ""}</td><td>${map(s.in_lat, s.in_lng, s.in_distance_m)}</td><td>${map(s.out_lat, s.out_lng, s.out_distance_m)}</td><td class="wrap">${chips(s)}${(s.edits || []).map((e) => `<div class="muted" style="font-size:12px">${esc(e.at_ct)}: ${esc(e.note)}</div>`).join("")}</td><td><button data-fix="${s.id}">Fix</button></td></tr>`;
   }
   return h + "</table>";
 }
@@ -139,11 +139,13 @@ function render() {
   if (!d.totals.length) $("totals").innerHTML = `<div class="empty">No shifts in range</div>`;
   else {
     let h = `<table><tr><th>Name</th><th>Phone</th><th class="num">Shifts</th><th class="num">Hours (closed)</th><th class="num">Est. pay</th><th>Open</th><th>Flagged</th></tr>`;
-    let th = 0, tp = 0;
-    for (const t of d.totals) { th += t.hours; tp += t.est_pay; h += `<tr><td>${esc(t.name)}</td><td>${phoneF(t.phone)}</td><td class="num">${t.shifts}</td><td class="num">${t.hours.toFixed(2)}</td><td class="num">$${t.est_pay.toFixed(2)}</td><td>${t.open ? `<span class="chip bad">${t.open} open</span>` : ""}</td><td>${t.flagged ? `<span class="chip warn">${t.flagged}</span>` : ""}</td></tr>`; }
-    h += `<tr><th>Total</th><th></th><th></th><th class="num">${th.toFixed(2)}</th><th class="num">$${tp.toFixed(2)}</th><th></th><th></th></tr></table>`;
+    let th = 0, tp = 0, unpriced = 0;
+    for (const t of d.totals) { th += t.hours; if (t.est_pay == null) unpriced++; else tp += t.est_pay; h += `<tr><td>${esc(t.name)}</td><td>${phoneF(t.phone)}</td><td class="num">${t.shifts}</td><td class="num">${t.hours.toFixed(2)}</td><td class="num">${t.est_pay == null ? '<span class="muted">set role</span>' : "$" + t.est_pay.toFixed(2)}</td><td>${t.open ? `<span class="chip bad">${t.open} open</span>` : ""}</td><td>${t.flagged ? `<span class="chip warn">${t.flagged}</span>` : ""}</td></tr>`; }
+    h += `<tr><th>Total</th><th></th><th></th><th class="num">${th.toFixed(2)}</th><th class="num">$${tp.toFixed(2)}${unpriced ? ` <span class="muted">(+${unpriced} without role)</span>` : ""}</th><th></th><th></th></tr></table>`;
     $("totals").innerHTML = h;
   }
+  if (!d.workers.length) $("workers").innerHTML = `<div class="empty">No workers yet</div>`;
+  else $("workers").innerHTML = `<table><tr><th>Name</th><th>Phone</th><th>Role</th><th>Signed up</th></tr>` + d.workers.map((w) => `<tr><td>${esc(w.first_name)} ${esc(w.last_name)}</td><td>${phoneF(w.phone)}</td><td><select data-role="${w.id}"><option value="" ${!w.role ? "selected" : ""}>Not set</option><option value="shoveler" ${w.role === "shoveler" ? "selected" : ""}>Shoveler $30/hr</option><option value="plow" ${w.role === "plow" ? "selected" : ""}>Plow driver $35/hr</option></select> <span class="muted" id="rs-${w.id}"></span></td><td>${fmt(w.created_at)}</td></tr>`).join("") + `</table>`;
   const sel = $("add-w"); sel.innerHTML = `<option value="">Pick worker</option>` + d.workers.map((w) => `<option value="${w.id}">${esc(w.last_name)}, ${esc(w.first_name)} (${phoneF(w.phone)})</option>`).join("");
 }
 async function load() {
@@ -159,23 +161,22 @@ document.addEventListener("click", async (ev) => {
     const id = el.dataset.fix; const all = [...data.on_site, ...data.missing_out, ...data.shifts]; const s = all.find((x) => x.id === id);
     const td = el.parentElement; if (td.querySelector(".fix")) return;
     const box = document.createElement("div"); box.className = "fix";
-    box.innerHTML = `<label>Clock in (CT)<br><input type="datetime-local" class="fi" value="${toLocalInput(s.clock_in_at)}"></label><label>Clock out (CT)<br><input type="datetime-local" class="fo" value="${toLocalInput(s.clock_out_at)}"></label><label>Role<br><select class="fr"><option value="shoveler" ${s.role === "shoveler" ? "selected" : ""}>Shoveler $30</option><option value="plow" ${s.role === "plow" ? "selected" : ""}>Plow driver $35</option></select></label><label>Note (required)<br><textarea class="fn" placeholder="e.g. Forgot to clock out, left 6:30 PM per Juan"></textarea></label><button class="pri fs">Save fix</button> <button class="fc">Cancel</button> <span class="fm err"></span>`;
+    box.innerHTML = `<label>Clock in (CT)<br><input type="datetime-local" class="fi" value="${toLocalInput(s.clock_in_at)}"></label><label>Clock out (CT)<br><input type="datetime-local" class="fo" value="${toLocalInput(s.clock_out_at)}"></label><label>Note (required)<br><textarea class="fn" placeholder="e.g. Forgot to clock out, left 6:30 PM per Juan"></textarea></label><button class="pri fs">Save fix</button> <button class="fc">Cancel</button> <span class="fm err"></span>`;
     td.appendChild(box);
     box.querySelector(".fc").onclick = () => box.remove();
     box.querySelector(".fs").onclick = async () => {
       const note = box.querySelector(".fn").value.trim(); if (note.length < 3) { box.querySelector(".fm").textContent = "Add a note."; return; }
-      const body = { action: "admin_fix", shift_id: id, note, role: box.querySelector(".fr").value };
+      const body = { action: "admin_fix", shift_id: id, note };
       const fi = box.querySelector(".fi").value, fo = box.querySelector(".fo").value;
       if (fi && fi !== toLocalInput(s.clock_in_at)) body.clock_in_ct = fi;
       if (fo !== toLocalInput(s.clock_out_at)) body.clock_out_ct = fo;
-      if (body.role === s.role) delete body.role;
       const j = await api(body); if (!j.ok) { box.querySelector(".fm").textContent = "Error: " + j.code; return; }
       load();
     };
   }
 });
 $("add-go").onclick = async () => {
-  const body = { action: "admin_add_shift", worker_id: $("add-w").value, role: $("add-role").value, clock_in_ct: $("add-in").value, clock_out_ct: $("add-out").value, note: $("add-note").value.trim() };
+  const body = { action: "admin_add_shift", worker_id: $("add-w").value, clock_in_ct: $("add-in").value, clock_out_ct: $("add-out").value, note: $("add-note").value.trim() };
   if (!body.worker_id || !body.clock_in_ct || body.note.length < 3) { $("add-msg").textContent = "Pick a worker, a clock-in time and add a note."; return; }
   const j = await api(body); $("add-msg").textContent = j.ok ? "Added." : "Error: " + j.code; if (j.ok) { $("add-note").value = ""; load(); }
 };
@@ -184,6 +185,12 @@ $("csv").onclick = async () => {
   const blob = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
   a.download = `polaris-snow-hours-${$("from").value}-to-${$("to").value}.csv`; a.click();
 };
+document.addEventListener("change", async (ev) => {
+  const el = ev.target; if (!el.dataset || !el.dataset.role) return;
+  const j = await api({ action: "admin_set_role", worker_id: el.dataset.role, role: el.value });
+  if (!j.ok) { $("rs-" + el.dataset.role).textContent = "Error: " + j.code; return; }
+  load();
+});
 $("refresh").onclick = load;
 $("from").onchange = load; $("to").onchange = load;
 $("logout").onclick = () => { localStorage.removeItem("tc_admin"); token = ""; showLogin(); };
