@@ -1,1 +1,315 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Polaris</title></head><body>Polaris Landscape</body></html>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b3d2e">
+<title>Polaris Landscape | Reloj de nieve</title>
+<style>
+  :root { --g:#0b3d2e; --in:#15803d; --out:#b91c1c; --bg:#f4f6f5; --mut:#5b6b64; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif; background:var(--bg); color:#111; }
+  header { background:var(--g); color:#fff; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:17px; margin:0; line-height:1.2; }
+  header small { display:block; font-weight:400; opacity:.85; font-size:13px; }
+  .lang { display:flex; border:1px solid #fff8; border-radius:8px; overflow:hidden; }
+  .lang button { background:transparent; color:#fff; border:0; padding:8px 12px; font-size:15px; font-weight:600; }
+  .lang button.on { background:#fff; color:var(--g); }
+  main { max-width:520px; margin:0 auto; padding:16px; }
+  .clock { text-align:center; font-size:34px; font-weight:700; margin:6px 0 2px; font-variant-numeric: tabular-nums; }
+  .date { text-align:center; color:var(--mut); margin-bottom:14px; }
+  .card { background:#fff; border-radius:14px; padding:16px; box-shadow:0 1px 3px #0002; margin-bottom:14px; }
+  label { display:block; font-weight:600; margin:12px 0 6px; }
+  input[type=text], input[type=tel] { width:100%; font-size:19px; padding:12px; border:1px solid #bbb; border-radius:10px; }
+  .roles { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .roles button { font-size:16px; padding:14px 8px; border-radius:10px; border:2px solid #ccc; background:#fff; font-weight:600; }
+  .roles button.on { border-color:var(--g); background:#e6f2ed; }
+  .roles button span { display:block; font-weight:400; color:var(--mut); font-size:14px; }
+  .big { display:block; width:100%; font-size:26px; font-weight:800; color:#fff; border:0; border-radius:16px; padding:28px 10px; margin:12px 0; }
+  .big:disabled { opacity:.45; }
+  .in { background:var(--in); } .out { background:var(--out); }
+  .primary { display:block; width:100%; font-size:20px; font-weight:700; color:#fff; background:var(--g); border:0; border-radius:12px; padding:16px; margin-top:16px; }
+  .link { background:none; border:0; color:var(--mut); text-decoration:underline; font-size:15px; padding:8px 0; }
+  .status { text-align:center; font-size:18px; font-weight:600; padding:10px; border-radius:10px; background:#eef2f0; }
+  .status.onclock { background:#dcfce7; color:#14532d; }
+  .msg { padding:14px; border-radius:12px; margin:12px 0; font-size:17px; line-height:1.35; }
+  .msg.ok { background:#dcfce7; color:#14532d; } .msg.warn { background:#fef3c7; color:#78350f; } .msg.bad { background:#fee2e2; color:#7f1d1d; }
+  .hidden { display:none !important; }
+  .preview { width:100%; max-height:300px; object-fit:cover; border-radius:12px; margin-top:10px; }
+  .camlabel { display:block; text-align:center; font-size:20px; font-weight:700; color:#fff; background:var(--g); border-radius:12px; padding:18px; margin-top:10px; }
+  .hello { font-size:20px; font-weight:700; margin-bottom:8px; }
+  .foot { text-align:center; color:var(--mut); font-size:13px; margin-top:20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Polaris Landscape<small data-t="subtitle"></small></h1>
+  <div class="lang"><button id="lang-es">ES</button><button id="lang-en">EN</button></div>
+</header>
+<main>
+  <div class="clock" id="clock">--:--</div>
+  <div class="date" id="date"></div>
+  <div id="msg"></div>
+
+  <!-- Registration -->
+  <section id="reg" class="card hidden">
+    <div class="hello" data-t="reg_title"></div>
+    <label for="first" data-t="first"></label><input id="first" type="text" autocomplete="given-name" maxlength="60">
+    <label for="last" data-t="last"></label><input id="last" type="text" autocomplete="family-name" maxlength="60">
+    <label for="phone" data-t="phone"></label><input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="630-555-1234" maxlength="20">
+    <label data-t="role"></label>
+    <div class="roles" id="reg-roles"></div>
+    <button class="primary" id="reg-save" data-t="save"></button>
+  </section>
+
+  <!-- Main -->
+  <section id="home" class="hidden">
+    <div class="card">
+      <div class="hello" id="hello"></div>
+      <div class="status" id="status"></div>
+      <label data-t="role_today"></label>
+      <div class="roles" id="home-roles"></div>
+      <button class="big in" id="btn-in" data-t="clock_in"></button>
+      <button class="big out" id="btn-out" data-t="clock_out"></button>
+    </div>
+    <button class="link" id="notme" data-t="not_me"></button>
+  </section>
+
+  <!-- Selfie step -->
+  <section id="selfie" class="card hidden">
+    <div class="hello" data-t="selfie_title"></div>
+    <div data-t="selfie_help"></div>
+    <label class="camlabel" for="cam" data-t="take_selfie"></label>
+    <input id="cam" type="file" accept="image/*" capture="user" class="hidden">
+    <img id="prev" class="preview hidden" alt="">
+    <button class="big in hidden" id="confirm-in" data-t="confirm_in"></button>
+    <button class="link" id="nophoto" data-t="no_photo"></button><br>
+    <button class="link" id="cancel-in" data-t="cancel"></button>
+  </section>
+
+  <div class="foot" data-t="foot"></div>
+</main>
+<script>
+const API = "https://fmijlsxmpuhzqvuaswkw.supabase.co/functions/v1/timeclock";
+const TZ = "America/Chicago";
+const T = {
+  es: {
+    subtitle: "Reloj de la cuadrilla de nieve",
+    reg_title: "Primera vez: escribe tus datos",
+    first: "Nombre", last: "Apellido", phone: "Celular", role: "Trabajo",
+    role_today: "Trabajo de hoy",
+    shoveler: "Palero", plow: "Chofer de quitanieves", per_hr: "/hora",
+    save: "Guardar", clock_in: "Registrar ENTRADA", clock_out: "Registrar SALIDA",
+    not_me: "No soy yo (cambiar persona)",
+    hello: (n) => `Hola, ${n}`,
+    on_since: (t) => `Estás trabajando desde las ${t}`,
+    off: "No estás registrado ahora",
+    selfie_title: "Foto para registrar entrada",
+    selfie_help: "Toma una selfie con tu cara visible. Usamos la hora del servidor y tu ubicación.",
+    take_selfie: "Tomar selfie", confirm_in: "Confirmar ENTRADA",
+    no_photo: "No puedo tomar foto, registrar sin foto", cancel: "Cancelar",
+    foot: "La hora la pone el servidor (hora de Chicago). Polaris Landscape, Westmont IL.",
+    need_name: "Escribe tu nombre y apellido.", bad_phone: "Escribe un celular de 10 dígitos.",
+    welcome_back: "Te encontramos por tu número. Bienvenido de nuevo.",
+    working: "Un momento...", getting_gps: "Buscando tu ubicación...",
+    in_ok: (t) => `Entrada registrada a las ${t}. ¡Buen trabajo!`,
+    out_ok: (t, h) => `Salida registrada a las ${t}. Trabajaste ${h} horas.`,
+    already_in: (t) => `Ya registraste entrada a las ${t}. Cuando termines, toca Registrar SALIDA.`,
+    not_in: "No tienes una entrada abierta. Toca Registrar ENTRADA primero. Si olvidaste registrar entrada, avísale a tu supervisor.",
+    gps_off: "No pudimos ver tu ubicación (GPS apagado o sin permiso). Se guardó, pero queda marcado para revisión.",
+    far: "Estás lejos del patio de Polaris. Se guardó, pero queda marcado para revisión.",
+    no_photo_saved: "Se guardó sin foto. Queda marcado para revisión.",
+    rate_limited: "Demasiados intentos. Espera unos minutos y vuelve a intentar.",
+    net: "No hay conexión. Revisa tu señal e intenta otra vez.",
+    unknown_worker: "No encontramos tu registro. Escribe tus datos otra vez.",
+    error: "Algo salió mal. Intenta otra vez o avisa a tu supervisor.",
+    confirm_reset: "¿Borrar tus datos de este teléfono?",
+  },
+  en: {
+    subtitle: "Snow crew time clock",
+    reg_title: "First time: enter your info",
+    first: "First name", last: "Last name", phone: "Cell phone", role: "Job",
+    role_today: "Today's job",
+    shoveler: "Shoveler", plow: "Plow driver", per_hr: "/hr",
+    save: "Save", clock_in: "Clock IN", clock_out: "Clock OUT",
+    not_me: "Not me (switch person)",
+    hello: (n) => `Hi, ${n}`,
+    on_since: (t) => `You are clocked in since ${t}`,
+    off: "You are not clocked in",
+    selfie_title: "Photo to clock in",
+    selfie_help: "Take a selfie with your face visible. We use server time and your location.",
+    take_selfie: "Take selfie", confirm_in: "Confirm clock IN",
+    no_photo: "I can't take a photo, clock in without one", cancel: "Cancel",
+    foot: "Time is set by the server (Chicago time). Polaris Landscape, Westmont IL.",
+    need_name: "Enter your first and last name.", bad_phone: "Enter a 10 digit cell number.",
+    welcome_back: "We found you by your phone number. Welcome back.",
+    working: "One moment...", getting_gps: "Getting your location...",
+    in_ok: (t) => `Clocked in at ${t}. Have a good shift!`,
+    out_ok: (t, h) => `Clocked out at ${t}. You worked ${h} hours.`,
+    already_in: (t) => `You already clocked in at ${t}. When you finish, tap Clock OUT.`,
+    not_in: "You are not clocked in. Tap Clock IN first. If you forgot to clock in, tell your supervisor.",
+    gps_off: "We could not get your location (GPS off or not allowed). Saved, but flagged for review.",
+    far: "You are far from the Polaris yard. Saved, but flagged for review.",
+    no_photo_saved: "Saved without a photo. Flagged for review.",
+    rate_limited: "Too many tries. Wait a few minutes and try again.",
+    net: "No connection. Check your signal and try again.",
+    unknown_worker: "We could not find your record. Please enter your info again.",
+    error: "Something went wrong. Try again or tell your supervisor.",
+    confirm_reset: "Remove your info from this phone?",
+  },
+};
+const $ = (id) => document.getElementById(id);
+let lang = localStorage.getItem("tc_lang") || "es";
+let worker = JSON.parse(localStorage.getItem("tc_worker") || "null");
+let device = localStorage.getItem("tc_device");
+if (!device) { device = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); localStorage.setItem("tc_device", device); }
+let openShift = null, regRole = "shoveler", homeRole = null, serverSkew = 0, photoData = null, gpsPromise = null, busy = false;
+const t = (k, ...a) => { const v = T[lang][k]; return typeof v === "function" ? v(...a) : v; };
+const fmtTime = (iso) => new Date(iso).toLocaleTimeString(lang === "es" ? "es-MX" : "en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  $("lang-es").classList.toggle("on", lang === "es"); $("lang-en").classList.toggle("on", lang === "en");
+  document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  renderRoles(); renderHome(); tick();
+}
+function renderRoles() {
+  for (const [boxId, cur, set] of [["reg-roles", regRole, (r) => regRole = r], ["home-roles", homeRole, (r) => homeRole = r]]) {
+    const box = $(boxId); box.innerHTML = "";
+    for (const [r, rate] of [["shoveler", 30], ["plow", 35]]) {
+      const b = document.createElement("button"); b.type = "button";
+      b.className = cur === r ? "on" : "";
+      b.textContent = t(r);
+      const s = document.createElement("span"); s.textContent = `$${rate}${t("per_hr")}`; b.appendChild(s);
+      b.onclick = () => { set(r); renderRoles(); };
+      box.appendChild(b);
+    }
+  }
+}
+function show(id) { for (const s of ["reg", "home", "selfie"]) $(s).classList.toggle("hidden", s !== id); }
+function msg(text, kind = "ok") { const m = $("msg"); m.innerHTML = ""; if (!text) return; const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text; m.appendChild(d); m.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+function addMsg(text, kind) { const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text; $("msg").appendChild(d); }
+function renderHome() {
+  if (!worker) return;
+  $("hello").textContent = t("hello", worker.first_name);
+  const st = $("status");
+  if (openShift) { st.textContent = t("on_since", fmtTime(openShift.clock_in_at)); st.classList.add("onclock"); }
+  else { st.textContent = t("off"); st.classList.remove("onclock"); }
+  $("btn-in").disabled = busy; $("btn-out").disabled = busy;
+}
+function tick() {
+  const now = new Date(Date.now() + serverSkew);
+  $("clock").textContent = now.toLocaleTimeString(lang === "es" ? "es-MX" : "en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit", second: "2-digit" });
+  $("date").textContent = now.toLocaleDateString(lang === "es" ? "es-MX" : "en-US", { timeZone: TZ, weekday: "long", month: "long", day: "numeric" });
+}
+setInterval(tick, 1000);
+
+async function api(body) {
+  let r;
+  try { r = await fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, device_id: device }) }); }
+  catch (e) { return { ok: false, code: "net" }; }
+  let j = {}; try { j = await r.json(); } catch (e) { j = { ok: false, code: "error" }; }
+  if (j.server_time) serverSkew = new Date(j.server_time).getTime() - Date.now();
+  return j;
+}
+function errText(j) { if (j.code === "already_in") return t("already_in", fmtTime(j.clock_in_at)); return T[lang][j.code] ? t(j.code) : t("error"); }
+
+function getGps(timeout = 15000) {
+  return new Promise((res) => {
+    if (!navigator.geolocation) return res({ error: "unsupported" });
+    let done = false; const fin = (v) => { if (!done) { done = true; res(v); } };
+    setTimeout(() => fin({ error: "timeout" }), timeout + 1000);
+    navigator.geolocation.getCurrentPosition(
+      (p) => fin({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
+      (e) => fin({ error: e.code === 1 ? "denied" : "unavailable" }),
+      { enableHighAccuracy: true, timeout, maximumAge: 60000 });
+  });
+}
+const gpsBody = (g) => g.error ? { gps_error: g.error } : { lat: g.lat, lng: g.lng, accuracy: g.accuracy };
+function flagMsgs(flags) {
+  if (!flags) return;
+  if (flags.includes("gps_denied") || flags.includes("no_gps")) addMsg(t("gps_off"), "warn");
+  if (flags.includes("far_from_yard")) addMsg(t("far"), "warn");
+  if (flags.includes("no_photo") || flags.includes("camera_denied") || flags.includes("photo_upload_failed")) addMsg(t("no_photo_saved"), "warn");
+}
+
+async function refresh() {
+  if (!worker) { show("reg"); return; }
+  show("home"); renderHome();
+  const j = await api({ action: "status", worker_id: worker.id });
+  if (j.ok) { worker = { ...worker, ...j.worker }; localStorage.setItem("tc_worker", JSON.stringify(worker)); openShift = j.open_shift; if (!homeRole) homeRole = (openShift && openShift.role) || worker.role; renderRoles(); renderHome(); }
+  else if (j.code === "unknown_worker") { localStorage.removeItem("tc_worker"); worker = null; msg(t("unknown_worker"), "bad"); show("reg"); }
+}
+
+$("reg-save").onclick = async () => {
+  const first = $("first").value.trim(), last = $("last").value.trim(), phone = $("phone").value.replace(/\D/g, "").replace(/^1(\d{10})$/, "$1");
+  if (!first || !last) return msg(t("need_name"), "bad");
+  if (phone.length !== 10) return msg(t("bad_phone"), "bad");
+  msg(t("working"), "warn");
+  const j = await api({ action: "register", first_name: first, last_name: last, phone, role: regRole });
+  if (!j.ok) return msg(errText(j), "bad");
+  worker = j.worker; localStorage.setItem("tc_worker", JSON.stringify(worker));
+  openShift = j.open_shift; homeRole = regRole;
+  msg(j.existing ? t("welcome_back") : "", "ok"); if (!j.existing) msg("");
+  show("home"); renderRoles(); renderHome();
+};
+
+$("btn-in").onclick = () => {
+  msg("");
+  if (openShift) return msg(t("already_in", fmtTime(openShift.clock_in_at)), "warn");
+  photoData = null; $("prev").classList.add("hidden"); $("confirm-in").classList.add("hidden"); $("cam").value = "";
+  gpsPromise = getGps(15000);
+  show("selfie");
+};
+$("cancel-in").onclick = () => { show("home"); };
+$("cam").onchange = async () => {
+  const f = $("cam").files && $("cam").files[0]; if (!f) return;
+  try { photoData = await shrink(f); $("prev").src = photoData; $("prev").classList.remove("hidden"); $("confirm-in").classList.remove("hidden"); }
+  catch (e) { photoData = null; msg(t("error"), "bad"); }
+};
+function shrink(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => { const max = 900; let { width: w, height: h } = img; const s = Math.min(1, max / Math.max(w, h)); w = Math.round(w * s); h = Math.round(h * s);
+      const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.75)); };
+    img.onerror = rej; img.src = url;
+  });
+}
+async function doClockIn(withPhoto) {
+  if (busy) return; busy = true; renderHome();
+  $("confirm-in").disabled = true; $("nophoto").disabled = true;
+  msg(t("getting_gps"), "warn");
+  const g = await (gpsPromise || getGps());
+  msg(t("working"), "warn");
+  const body = { action: "clock_in", worker_id: worker.id, role: homeRole || worker.role, ...gpsBody(g) };
+  if (withPhoto && photoData) body.photo = photoData; else body.photo_error = "skipped";
+  const j = await api(body);
+  busy = false; $("confirm-in").disabled = false; $("nophoto").disabled = false;
+  show("home");
+  if (j.ok) { openShift = { id: j.shift.id, clock_in_at: j.shift.clock_in_at, role: j.shift.role }; msg(t("in_ok", fmtTime(j.shift.clock_in_at)), "ok"); flagMsgs(j.shift.flags); }
+  else { if (j.code === "already_in") openShift = { clock_in_at: j.clock_in_at }; msg(errText(j), j.code === "already_in" ? "warn" : "bad"); }
+  renderHome();
+}
+$("confirm-in").onclick = () => doClockIn(true);
+$("nophoto").onclick = () => doClockIn(false);
+
+$("btn-out").onclick = async () => {
+  if (busy) return; busy = true; renderHome();
+  msg(t("getting_gps"), "warn");
+  const g = await getGps(10000);
+  msg(t("working"), "warn");
+  const j = await api({ action: "clock_out", worker_id: worker.id, ...gpsBody(g) });
+  busy = false;
+  if (j.ok) { openShift = null; msg(t("out_ok", fmtTime(j.shift.clock_out_at), (j.shift.hours || 0).toFixed(2)), "ok"); if (j.shift.flags && j.shift.flags.includes("far_from_yard")) addMsg(t("far"), "warn"); }
+  else { if (j.code === "not_in") openShift = null; msg(errText(j), j.code === "not_in" ? "warn" : "bad"); }
+  renderHome();
+};
+$("notme").onclick = () => { if (confirm(t("confirm_reset"))) { localStorage.removeItem("tc_worker"); worker = null; openShift = null; homeRole = null; msg(""); show("reg"); } };
+$("lang-es").onclick = () => { lang = "es"; localStorage.setItem("tc_lang", lang); applyLang(); };
+$("lang-en").onclick = () => { lang = "en"; localStorage.setItem("tc_lang", lang); applyLang(); };
+document.addEventListener("visibilitychange", () => { if (!document.hidden && worker) refresh(); });
+applyLang(); refresh();
+</script>
+</body>
+</html>

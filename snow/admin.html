@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Polaris snow crew hours (admin)</title>
+<style>
+  body { margin:0; font-family:-apple-system, system-ui, Segoe UI, Roboto, sans-serif; background:#f4f6f5; color:#111; font-size:15px; }
+  header { background:#0b3d2e; color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+  header h1 { margin:0; font-size:18px; }
+  main { max-width:1200px; margin:0 auto; padding:12px; }
+  section { background:#fff; border-radius:12px; padding:12px 14px; margin-bottom:14px; box-shadow:0 1px 3px #0002; overflow-x:auto; }
+  h2 { font-size:16px; margin:2px 0 10px; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid #e5e7eb; vertical-align:top; white-space:nowrap; }
+  th { background:#f8faf9; font-size:13px; color:#555; }
+  td.wrap { white-space:normal; min-width:160px; }
+  .chip { display:inline-block; font-size:12px; padding:2px 7px; border-radius:10px; margin:1px 2px 1px 0; background:#e5e7eb; }
+  .chip.warn { background:#fef3c7; color:#78350f; } .chip.bad { background:#fee2e2; color:#7f1d1d; } .chip.ok { background:#dcfce7; color:#14532d; } .chip.test { background:#e0e7ff; color:#3730a3; }
+  img.th { width:56px; height:56px; object-fit:cover; border-radius:8px; cursor:pointer; }
+  button, input, select { font-size:15px; padding:7px 10px; border-radius:8px; border:1px solid #bbb; background:#fff; }
+  button.pri { background:#0b3d2e; color:#fff; border-color:#0b3d2e; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .muted { color:#666; }
+  .empty { color:#666; font-style:italic; }
+  #login { max-width:420px; margin:60px auto; }
+  .fix { background:#f8faf9; border:1px solid #ddd; border-radius:10px; padding:10px; margin-top:6px; white-space:normal; }
+  .fix label { display:block; font-size:13px; margin-top:6px; color:#333; }
+  .fix textarea { width:100%; min-height:50px; font-size:15px; }
+  #lightbox { position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; }
+  #lightbox img { max-width:95vw; max-height:90vh; border-radius:10px; }
+  .err { color:#b91c1c; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Polaris Landscape: snow crew hours</h1>
+  <div class="row"><span id="asof" class="muted" style="color:#cde"></span><button id="refresh">Refresh</button><button id="logout">Log out</button></div>
+</header>
+<div id="login" class="hidden">
+  <section>
+    <h2>Admin login</h2>
+    <p class="muted">Paste the admin key (or open the full admin link).</p>
+    <input id="key" type="password" style="width:100%" autocomplete="current-password">
+    <p><button class="pri" id="key-go">Open</button> <span id="key-err" class="err"></span></p>
+  </section>
+</div>
+<main id="app" class="hidden">
+  <section>
+    <div class="row">
+      <strong>Date range (CT):</strong>
+      <input type="date" id="from"> to <input type="date" id="to">
+      <button data-r="0">Today</button><button data-r="1">Since yesterday</button><button data-r="2">Last 3 days</button><button data-r="6">Last 7 days</button><button data-r="m">This month</button>
+      <button class="pri" id="csv">Download CSV for payroll</button>
+    </div>
+  </section>
+  <section><h2>On site now <span id="n-on" class="muted"></span></h2><div id="on"></div></section>
+  <section><h2>Missing clock-out (open more than <span id="lsh"></span> h) <span id="n-miss" class="muted"></span></h2><div id="miss"></div></section>
+  <section><h2>Totals per person (selected range)</h2><div id="totals"></div></section>
+  <section><h2>All shifts (selected range)</h2><div id="shifts"></div></section>
+  <section>
+    <h2>Add a missed shift</h2>
+    <div class="row">
+      <select id="add-w"></select>
+      <select id="add-role"><option value="">Worker's role</option><option value="shoveler">Shoveler $30</option><option value="plow">Plow driver $35</option></select>
+      <label>In <input type="datetime-local" id="add-in"></label>
+      <label>Out <input type="datetime-local" id="add-out"></label>
+      <input id="add-note" placeholder="Required note (why)" style="min-width:240px">
+      <button class="pri" id="add-go">Add shift</button> <span id="add-msg"></span>
+    </div>
+    <p class="muted">Times are Chicago time. Every fix and added shift keeps an audit note.</p>
+  </section>
+  <p class="muted">Flags: far_from_yard (more than 300 m from 670 Vandustrial Dr), gps_denied / no_gps, no_photo / camera_denied, admin_added. Flags never block a punch.</p>
+</main>
+<div id="lightbox" class="hidden"><img id="lb-img" alt=""></div>
+<script>
+const API = "https://fmijlsxmpuhzqvuaswkw.supabase.co/functions/v1/timeclock";
+const TZ = "America/Chicago";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+document.querySelectorAll(".hidden").forEach(() => {});
+const style = document.createElement("style"); style.textContent = ".hidden{display:none!important}"; document.head.appendChild(style);
+
+// token from #k=... then strip it from the address bar
+const hp = new URLSearchParams(location.hash.slice(1));
+if (hp.get("k")) { localStorage.setItem("tc_admin", hp.get("k")); history.replaceState(null, "", location.pathname); }
+let token = localStorage.getItem("tc_admin") || "";
+let data = null;
+
+const ctDate = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+function setRange(r) {
+  const today = ctDate(new Date());
+  let from = today;
+  if (r === "m") from = today.slice(0, 8) + "01";
+  else { const d = new Date(today + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - Number(r)); from = d.toISOString().slice(0, 10); }
+  $("from").value = from; $("to").value = today; load();
+}
+async function api(body, raw = false) {
+  const r = await fetch(API, { method: "POST", headers: { "content-type": "application/json", "x-admin-token": token }, body: JSON.stringify(body) });
+  if (r.status === 401) { showLogin("Key not accepted."); throw new Error("unauthorized"); }
+  return raw ? r : r.json();
+}
+function showLogin(e) { $("app").classList.add("hidden"); $("login").classList.remove("hidden"); $("key-err").textContent = e || ""; }
+const fmt = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+const toLocalInput = (iso) => { if (!iso) return ""; const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso)).map((x) => [x.type, x.value])); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
+const roleL = (r) => r === "plow" ? "Plow driver" : "Shoveler";
+function chips(s) {
+  const out = [];
+  for (const f of s.in_flags || []) out.push(`<span class="chip ${f === "admin_added" ? "" : "warn"}">in: ${esc(f)}</span>`);
+  for (const f of s.out_flags || []) out.push(`<span class="chip warn">out: ${esc(f)}</span>`);
+  if (s.edited) out.push(`<span class="chip">edited</span>`);
+  if (s.is_test) out.push(`<span class="chip test">TEST</span>`);
+  return out.join("") || `<span class="chip ok">ok</span>`;
+}
+const map = (lat, lng, d) => lat == null ? "" : `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener">${d == null ? "map" : d + " m"}</a>`;
+const photo = (s) => s.photo_url ? `<img class="th" src="${esc(s.photo_url)}" data-full="${esc(s.photo_url)}" alt="selfie">` : `<span class="muted">none</span>`;
+const phoneF = (p) => String(p).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+
+function shiftTable(rows, opts = {}) {
+  if (!rows.length) return `<div class="empty">None</div>`;
+  let h = `<table><tr><th>Photo</th><th>Name</th><th>Phone</th><th>Role</th><th>In (CT)</th><th>Out (CT)</th><th class="num">Hours</th><th class="num">Est. pay</th><th>In GPS</th><th>Out GPS</th><th>Flags</th><th></th></tr>`;
+  for (const s of rows) {
+    const hrs = s.hours != null ? s.hours.toFixed(2) : (s.open_hours != null ? `<span class="muted">${s.open_hours.toFixed(1)} so far</span>` : "open");
+    h += `<tr id="r-${s.id}"><td>${photo(s)}</td><td>${esc(s.name)}</td><td>${phoneF(s.phone)}</td><td>${roleL(s.role)} $${s.rate}</td><td>${fmt(s.clock_in_at)}</td><td>${s.clock_out_at ? fmt(s.clock_out_at) : '<span class="chip bad">no clock-out</span>'}</td><td class="num">${hrs}</td><td class="num">${s.est_pay != null ? "$" + s.est_pay.toFixed(2) : ""}</td><td>${map(s.in_lat, s.in_lng, s.in_distance_m)}</td><td>${map(s.out_lat, s.out_lng, s.out_distance_m)}</td><td class="wrap">${chips(s)}${(s.edits || []).map((e) => `<div class="muted" style="font-size:12px">${esc(e.at_ct)}: ${esc(e.note)}</div>`).join("")}</td><td><button data-fix="${s.id}">Fix</button></td></tr>`;
+  }
+  return h + "</table>";
+}
+function render() {
+  const d = data;
+  $("asof").textContent = "Updated " + fmt(d.server_time);
+  $("lsh").textContent = d.long_shift_hours;
+  $("n-on").textContent = `(${d.on_site.length})`; $("n-miss").textContent = `(${d.missing_out.length})`;
+  $("on").innerHTML = shiftTable(d.on_site); $("miss").innerHTML = shiftTable(d.missing_out);
+  $("shifts").innerHTML = shiftTable(d.shifts);
+  if (!d.totals.length) $("totals").innerHTML = `<div class="empty">No shifts in range</div>`;
+  else {
+    let h = `<table><tr><th>Name</th><th>Phone</th><th class="num">Shifts</th><th class="num">Hours (closed)</th><th class="num">Est. pay</th><th>Open</th><th>Flagged</th></tr>`;
+    let th = 0, tp = 0;
+    for (const t of d.totals) { th += t.hours; tp += t.est_pay; h += `<tr><td>${esc(t.name)}</td><td>${phoneF(t.phone)}</td><td class="num">${t.shifts}</td><td class="num">${t.hours.toFixed(2)}</td><td class="num">$${t.est_pay.toFixed(2)}</td><td>${t.open ? `<span class="chip bad">${t.open} open</span>` : ""}</td><td>${t.flagged ? `<span class="chip warn">${t.flagged}</span>` : ""}</td></tr>`; }
+    h += `<tr><th>Total</th><th></th><th></th><th class="num">${th.toFixed(2)}</th><th class="num">$${tp.toFixed(2)}</th><th></th><th></th></tr></table>`;
+    $("totals").innerHTML = h;
+  }
+  const sel = $("add-w"); sel.innerHTML = `<option value="">Pick worker</option>` + d.workers.map((w) => `<option value="${w.id}">${esc(w.last_name)}, ${esc(w.first_name)} (${phoneF(w.phone)})</option>`).join("");
+}
+async function load() {
+  try { const j = await api({ action: "admin_data", from: $("from").value, to: $("to").value }); if (!j.ok) throw new Error(j.code); data = j; $("login").classList.add("hidden"); $("app").classList.remove("hidden"); render(); }
+  catch (e) { if (e.message !== "unauthorized") $("asof").textContent = "Load failed: " + e.message; }
+}
+document.addEventListener("click", async (ev) => {
+  const el = ev.target;
+  if (el.matches("img.th")) { $("lb-img").src = el.dataset.full; $("lightbox").classList.remove("hidden"); return; }
+  if (el.closest("#lightbox")) { $("lightbox").classList.add("hidden"); return; }
+  if (el.dataset.r != null) return setRange(el.dataset.r);
+  if (el.dataset.fix) {
+    const id = el.dataset.fix; const all = [...data.on_site, ...data.missing_out, ...data.shifts]; const s = all.find((x) => x.id === id);
+    const td = el.parentElement; if (td.querySelector(".fix")) return;
+    const box = document.createElement("div"); box.className = "fix";
+    box.innerHTML = `<label>Clock in (CT)<br><input type="datetime-local" class="fi" value="${toLocalInput(s.clock_in_at)}"></label><label>Clock out (CT)<br><input type="datetime-local" class="fo" value="${toLocalInput(s.clock_out_at)}"></label><label>Role<br><select class="fr"><option value="shoveler" ${s.role === "shoveler" ? "selected" : ""}>Shoveler $30</option><option value="plow" ${s.role === "plow" ? "selected" : ""}>Plow driver $35</option></select></label><label>Note (required)<br><textarea class="fn" placeholder="e.g. Forgot to clock out, left 6:30 PM per Juan"></textarea></label><button class="pri fs">Save fix</button> <button class="fc">Cancel</button> <span class="fm err"></span>`;
+    td.appendChild(box);
+    box.querySelector(".fc").onclick = () => box.remove();
+    box.querySelector(".fs").onclick = async () => {
+      const note = box.querySelector(".fn").value.trim(); if (note.length < 3) { box.querySelector(".fm").textContent = "Add a note."; return; }
+      const body = { action: "admin_fix", shift_id: id, note, role: box.querySelector(".fr").value };
+      const fi = box.querySelector(".fi").value, fo = box.querySelector(".fo").value;
+      if (fi && fi !== toLocalInput(s.clock_in_at)) body.clock_in_ct = fi;
+      if (fo !== toLocalInput(s.clock_out_at)) body.clock_out_ct = fo;
+      if (body.role === s.role) delete body.role;
+      const j = await api(body); if (!j.ok) { box.querySelector(".fm").textContent = "Error: " + j.code; return; }
+      load();
+    };
+  }
+});
+$("add-go").onclick = async () => {
+  const body = { action: "admin_add_shift", worker_id: $("add-w").value, role: $("add-role").value, clock_in_ct: $("add-in").value, clock_out_ct: $("add-out").value, note: $("add-note").value.trim() };
+  if (!body.worker_id || !body.clock_in_ct || body.note.length < 3) { $("add-msg").textContent = "Pick a worker, a clock-in time and add a note."; return; }
+  const j = await api(body); $("add-msg").textContent = j.ok ? "Added." : "Error: " + j.code; if (j.ok) { $("add-note").value = ""; load(); }
+};
+$("csv").onclick = async () => {
+  const r = await api({ action: "admin_csv", from: $("from").value, to: $("to").value }, true);
+  const blob = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `polaris-snow-hours-${$("from").value}-to-${$("to").value}.csv`; a.click();
+};
+$("refresh").onclick = load;
+$("from").onchange = load; $("to").onchange = load;
+$("logout").onclick = () => { localStorage.removeItem("tc_admin"); token = ""; showLogin(); };
+$("key-go").onclick = () => { token = $("key").value.trim(); localStorage.setItem("tc_admin", token); load(); };
+if (!token) showLogin(); else setRange("2");
+setInterval(() => { if (token && !document.hidden) load(); }, 60000);
+</script>
+</body>
+</html>
