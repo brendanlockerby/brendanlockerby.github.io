@@ -32,8 +32,6 @@
   .msg { white-space:pre-line; padding:14px; border-radius:12px; margin:12px 0; font-size:17px; line-height:1.35; }
   .msg.ok { background:#dcfce7; color:#14532d; } .msg.warn { background:#fef3c7; color:#78350f; } .msg.bad { background:#fee2e2; color:#7f1d1d; }
   .hidden { display:none !important; }
-  .preview { width:100%; max-height:300px; object-fit:cover; border-radius:12px; margin-top:10px; }
-  .camlabel { display:block; text-align:center; font-size:20px; font-weight:700; color:#fff; background:var(--g); border-radius:12px; padding:18px; margin-top:10px; }
   .hello { font-size:20px; font-weight:700; margin-bottom:8px; }
   .foot { text-align:center; color:var(--mut); font-size:13px; margin-top:20px; }
 </style>
@@ -68,18 +66,6 @@
     <button class="link" id="notme" data-t="not_me"></button>
   </section>
 
-  <!-- Selfie step -->
-  <section id="selfie" class="card hidden">
-    <div class="hello" data-t="selfie_title"></div>
-    <div data-t="selfie_help"></div>
-    <label class="camlabel" for="cam" data-t="take_selfie"></label>
-    <input id="cam" type="file" accept="image/*" capture="user" class="hidden">
-    <img id="prev" class="preview hidden" alt="">
-    <button class="big in hidden" id="confirm-in" data-t="confirm_in"></button>
-    <button class="link" id="nophoto" data-t="no_photo"></button><br>
-    <button class="link" id="cancel-in" data-t="cancel"></button>
-  </section>
-
   <div class="foot" data-t="foot"></div>
 </main>
 <script>
@@ -95,10 +81,6 @@ const T = {
     hello: (n) => `Hola, ${n}`,
     on_since: (t) => `Estás trabajando desde las ${t}`,
     off: "No estás registrado ahora",
-    selfie_title: "Foto para registrar entrada",
-    selfie_help: "Toma una selfie con tu cara visible. Usamos la hora del servidor y tu ubicación.",
-    take_selfie: "Tomar selfie", confirm_in: "Confirmar ENTRADA",
-    no_photo: "No puedo tomar foto, registrar sin foto", cancel: "Cancelar",
     foot: "La hora la pone el servidor (hora de Chicago). Polaris Landscape, Westmont IL.",
     need_name: "Escribe tu nombre y apellido.", bad_phone: "Escribe un celular de 10 dígitos.",
     welcome_back: "Te encontramos por tu número. Bienvenido de nuevo.",
@@ -109,7 +91,6 @@ const T = {
     not_in: "No tienes una entrada abierta. Toca Registrar ENTRADA primero. Si olvidaste registrar entrada, avísale a tu supervisor.",
     gps_off: "No pudimos ver tu ubicación (GPS apagado o sin permiso). Se guardó, pero queda marcado para revisión.",
     far: "Estás lejos del patio de Polaris. Se guardó, pero queda marcado para revisión.",
-    no_photo_saved: "Se guardó sin foto. Queda marcado para revisión.",
     rate_limited: "Demasiados intentos. Espera unos minutos y vuelve a intentar.",
     net: "No hay conexión. Revisa tu señal e intenta otra vez.",
     unknown_worker: "No encontramos tu registro. Escribe tus datos otra vez.",
@@ -125,10 +106,6 @@ const T = {
     hello: (n) => `Hi, ${n}`,
     on_since: (t) => `You are clocked in since ${t}`,
     off: "You are not clocked in",
-    selfie_title: "Photo to clock in",
-    selfie_help: "Take a selfie with your face visible. We use server time and your location.",
-    take_selfie: "Take selfie", confirm_in: "Confirm clock IN",
-    no_photo: "I can't take a photo, clock in without one", cancel: "Cancel",
     foot: "Time is set by the server (Chicago time). Polaris Landscape, Westmont IL.",
     need_name: "Enter your first and last name.", bad_phone: "Enter a 10 digit cell number.",
     welcome_back: "We found you by your phone number. Welcome back.",
@@ -139,7 +116,6 @@ const T = {
     not_in: "You are not clocked in. Tap Clock IN first. If you forgot to clock in, tell your supervisor.",
     gps_off: "We could not get your location (GPS off or not allowed). Saved, but flagged for review.",
     far: "You are far from the Polaris yard. Saved, but flagged for review.",
-    no_photo_saved: "Saved without a photo. Flagged for review.",
     rate_limited: "Too many tries. Wait a few minutes and try again.",
     net: "No connection. Check your signal and try again.",
     unknown_worker: "We could not find your record. Please enter your info again.",
@@ -152,7 +128,7 @@ let lang = localStorage.getItem("tc_lang") || "es";
 let worker = JSON.parse(localStorage.getItem("tc_worker") || "null");
 let device = localStorage.getItem("tc_device");
 if (!device) { device = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); localStorage.setItem("tc_device", device); }
-let openShift = null, serverSkew = 0, photoData = null, gpsPromise = null, busy = false;
+let openShift = null, serverSkew = 0, busy = false;
 const t = (k, ...a) => { const v = T[lang][k]; return typeof v === "function" ? v(...a) : v; };
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString(lang === "es" ? "es-MX" : "en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
 
@@ -162,7 +138,7 @@ function applyLang() {
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
   renderHome(); tick();
 }
-function show(id) { for (const s of ["reg", "home", "selfie"]) $(s).classList.toggle("hidden", s !== id); }
+function show(id) { for (const s of ["reg", "home"]) $(s).classList.toggle("hidden", s !== id); }
 function msg(text, kind = "ok") { const m = $("msg"); m.innerHTML = ""; if (!text) return; const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text; m.appendChild(d); m.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
 function addMsg(text, kind) { const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text; $("msg").appendChild(d); }
 function renderHome() {
@@ -206,7 +182,6 @@ function flagMsgs(flags) {
   if (!flags) return;
   if (flags.includes("gps_denied") || flags.includes("no_gps")) addMsg(t("gps_off"), "warn");
   if (flags.includes("far_from_yard")) addMsg(t("far"), "warn");
-  if (flags.includes("no_photo") || flags.includes("camera_denied") || flags.includes("photo_upload_failed")) addMsg(t("no_photo_saved"), "warn");
 }
 
 async function refresh() {
@@ -230,44 +205,20 @@ $("reg-save").onclick = async () => {
   show("home"); renderHome();
 };
 
-$("btn-in").onclick = () => {
+$("btn-in").onclick = async () => {
+  if (busy) return;
   msg("");
   if (openShift) return msg(t("already_in", fmtTime(openShift.clock_in_at)), "warn");
-  photoData = null; $("prev").classList.add("hidden"); $("confirm-in").classList.add("hidden"); $("cam").value = "";
-  gpsPromise = getGps(15000);
-  show("selfie");
-};
-$("cancel-in").onclick = () => { show("home"); };
-$("cam").onchange = async () => {
-  const f = $("cam").files && $("cam").files[0]; if (!f) return;
-  try { photoData = await shrink(f); $("prev").src = photoData; $("prev").classList.remove("hidden"); $("confirm-in").classList.remove("hidden"); }
-  catch (e) { photoData = null; msg(t("error"), "bad"); }
-};
-function shrink(file) {
-  return new Promise((res, rej) => {
-    const url = URL.createObjectURL(file); const img = new Image();
-    img.onload = () => { const max = 900; let { width: w, height: h } = img; const s = Math.min(1, max / Math.max(w, h)); w = Math.round(w * s); h = Math.round(h * s);
-      const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.75)); };
-    img.onerror = rej; img.src = url;
-  });
-}
-async function doClockIn(withPhoto) {
-  if (busy) return; busy = true; renderHome();
-  $("confirm-in").disabled = true; $("nophoto").disabled = true;
+  busy = true; renderHome();
   msg(t("getting_gps"), "warn");
-  const g = await (gpsPromise || getGps());
+  const g = await getGps(15000);
   msg(t("working"), "warn");
-  const body = { action: "clock_in", worker_id: worker.id, ...gpsBody(g) };
-  if (withPhoto && photoData) body.photo = photoData; else body.photo_error = "skipped";
-  const j = await api(body);
-  busy = false; $("confirm-in").disabled = false; $("nophoto").disabled = false;
-  show("home");
+  const j = await api({ action: "clock_in", worker_id: worker.id, ...gpsBody(g) });
+  busy = false;
   if (j.ok) { openShift = { id: j.shift.id, clock_in_at: j.shift.clock_in_at }; msg(t("in_ok", fmtTime(j.shift.clock_in_at)), "ok"); flagMsgs(j.shift.flags); }
   else { if (j.code === "already_in") openShift = { clock_in_at: j.clock_in_at }; msg(errText(j), j.code === "already_in" ? "warn" : "bad"); }
   renderHome();
-}
-$("confirm-in").onclick = () => doClockIn(true);
-$("nophoto").onclick = () => doClockIn(false);
+};
 
 $("btn-out").onclick = async () => {
   if (busy) return; busy = true; renderHome();

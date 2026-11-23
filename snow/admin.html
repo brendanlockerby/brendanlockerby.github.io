@@ -19,7 +19,6 @@
   td.wrap { white-space:normal; min-width:160px; }
   .chip { display:inline-block; font-size:12px; padding:2px 7px; border-radius:10px; margin:1px 2px 1px 0; background:#e5e7eb; }
   .chip.warn { background:#fef3c7; color:#78350f; } .chip.bad { background:#fee2e2; color:#7f1d1d; } .chip.ok { background:#dcfce7; color:#14532d; } .chip.test { background:#e0e7ff; color:#3730a3; }
-  img.th { width:56px; height:56px; object-fit:cover; border-radius:8px; cursor:pointer; }
   button, input, select { font-size:15px; padding:7px 10px; border-radius:8px; border:1px solid #bbb; background:#fff; }
   button.pri { background:#0b3d2e; color:#fff; border-color:#0b3d2e; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -29,8 +28,6 @@
   .fix { background:#f8faf9; border:1px solid #ddd; border-radius:10px; padding:10px; margin-top:6px; white-space:normal; }
   .fix label { display:block; font-size:13px; margin-top:6px; color:#333; }
   .fix textarea { width:100%; min-height:50px; font-size:15px; }
-  #lightbox { position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; }
-  #lightbox img { max-width:95vw; max-height:90vh; border-radius:10px; }
   .err { color:#b91c1c; }
   .num { text-align:right; font-variant-numeric:tabular-nums; }
   .hidden { display:none !important; }
@@ -74,9 +71,8 @@
     </div>
     <p class="muted">Times are Chicago time. Every fix and added shift keeps an audit note.</p>
   </section>
-  <p class="muted">Flags: far_from_yard (more than 300 m from 670 Vandustrial Dr), gps_denied / no_gps, no_photo / camera_denied, admin_added. Flags never block a punch.</p>
+  <p class="muted">Flags: far_from_yard (more than 300 m from 670 Vandustrial Dr), gps_denied / no_gps, low_gps_accuracy, admin_added. Flags never block a punch.</p>
 </main>
-<div id="lightbox" class="hidden"><img id="lb-img" alt=""></div>
 <script>
 const API = "https://fmijlsxmpuhzqvuaswkw.supabase.co/functions/v1/timeclock";
 const TZ = "America/Chicago";
@@ -117,15 +113,14 @@ function chips(s) {
   return out.join("") || `<span class="chip ok">ok</span>`;
 }
 const map = (lat, lng, d) => lat == null ? "" : `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener">${d == null ? "map" : d + " m"}</a>`;
-const photo = (s) => s.photo_url ? `<img class="th" src="${esc(s.photo_url)}" data-full="${esc(s.photo_url)}" alt="selfie">` : `<span class="muted">none</span>`;
 const phoneF = (p) => String(p).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
 
 function shiftTable(rows, opts = {}) {
   if (!rows.length) return `<div class="empty">None</div>`;
-  let h = `<table><tr><th>Photo</th><th>Name</th><th>Phone</th><th>Role</th><th>In (CT)</th><th>Out (CT)</th><th class="num">Hours</th><th class="num">Est. pay</th><th>In GPS</th><th>Out GPS</th><th>Flags</th><th></th></tr>`;
+  let h = `<table><tr><th>Name</th><th>Phone</th><th>Role</th><th>In (CT)</th><th>Out (CT)</th><th class="num">Hours</th><th class="num">Est. pay</th><th>In GPS</th><th>Out GPS</th><th>Flags</th><th></th></tr>`;
   for (const s of rows) {
     const hrs = s.hours != null ? s.hours.toFixed(2) : (s.open_hours != null ? `<span class="muted">${s.open_hours.toFixed(1)} so far</span>` : "open");
-    h += `<tr id="r-${s.id}"><td>${photo(s)}</td><td>${esc(s.name)}</td><td>${phoneF(s.phone)}</td><td>${roleL(s.role)}</td><td>${fmt(s.clock_in_at)}</td><td>${s.clock_out_at ? fmt(s.clock_out_at) : '<span class="chip bad">no clock-out</span>'}</td><td class="num">${hrs}</td><td class="num">${s.est_pay != null ? "$" + s.est_pay.toFixed(2) : ""}</td><td>${map(s.in_lat, s.in_lng, s.in_distance_m)}</td><td>${map(s.out_lat, s.out_lng, s.out_distance_m)}</td><td class="wrap">${chips(s)}${(s.edits || []).map((e) => `<div class="muted" style="font-size:12px">${esc(e.at_ct)}: ${esc(e.note)}</div>`).join("")}</td><td><button data-fix="${s.id}">Fix</button></td></tr>`;
+    h += `<tr id="r-${s.id}"><td>${esc(s.name)}</td><td>${phoneF(s.phone)}</td><td>${roleL(s.role)}</td><td>${fmt(s.clock_in_at)}</td><td>${s.clock_out_at ? fmt(s.clock_out_at) : '<span class="chip bad">no clock-out</span>'}</td><td class="num">${hrs}</td><td class="num">${s.est_pay != null ? "$" + s.est_pay.toFixed(2) : ""}</td><td>${map(s.in_lat, s.in_lng, s.in_distance_m)}</td><td>${map(s.out_lat, s.out_lng, s.out_distance_m)}</td><td class="wrap">${chips(s)}${(s.edits || []).map((e) => `<div class="muted" style="font-size:12px">${esc(e.at_ct)}: ${esc(e.note)}</div>`).join("")}</td><td><button data-fix="${s.id}">Fix</button></td></tr>`;
   }
   return h + "</table>";
 }
@@ -154,8 +149,6 @@ async function load() {
 }
 document.addEventListener("click", async (ev) => {
   const el = ev.target;
-  if (el.matches("img.th")) { $("lb-img").src = el.dataset.full; $("lightbox").classList.remove("hidden"); return; }
-  if (el.closest("#lightbox")) { $("lightbox").classList.add("hidden"); return; }
   if (el.dataset.r != null) return setRange(el.dataset.r);
   if (el.dataset.fix) {
     const id = el.dataset.fix; const all = [...data.on_site, ...data.missing_out, ...data.shifts]; const s = all.find((x) => x.id === id);
