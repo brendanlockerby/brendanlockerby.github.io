@@ -33,7 +33,7 @@
   .link { background:none; border:0; color:var(--mut); text-decoration:underline; font-size:15px; padding:8px 0; }
   .status { text-align:center; font-size:18px; font-weight:600; padding:10px; border-radius:10px; background:#eef2f0; }
   .status.onclock { background:#dcfce7; color:#14532d; }
-  .msg { padding:14px; border-radius:12px; margin:12px 0; font-size:17px; line-height:1.35; }
+  .msg { white-space:pre-line; padding:14px; border-radius:12px; margin:12px 0; font-size:17px; line-height:1.35; }
   .msg.ok { background:#dcfce7; color:#14532d; } .msg.warn { background:#fef3c7; color:#78350f; } .msg.bad { background:#fee2e2; color:#7f1d1d; }
   .hidden { display:none !important; }
   .preview { width:100%; max-height:300px; object-fit:cover; border-radius:12px; margin-top:10px; }
@@ -113,9 +113,9 @@ const T = {
     need_name: "Escribe tu nombre y apellido.", bad_phone: "Escribe un celular de 10 dígitos.",
     welcome_back: "Te encontramos por tu número. Bienvenido de nuevo.",
     working: "Un momento...", getting_gps: "Buscando tu ubicación...",
-    in_ok: (t) => `Entrada registrada a las ${t}. ¡Buen trabajo!`,
-    out_ok: (t, h) => `Salida registrada a las ${t}. Trabajaste ${h} horas.`,
-    already_in: (t) => `Ya registraste entrada a las ${t}. Cuando termines, toca Registrar SALIDA.`,
+    in_ok: (t) => `¡Entrada registrada! Hora: ${t}`,
+    out_ok: (t, h) => `¡Salida registrada! Hora: ${t}\nTrabajaste ${h} horas.`,
+    already_in: (t) => `Ya registraste entrada (${t}). Cuando termines, toca Registrar SALIDA.`,
     not_in: "No tienes una entrada abierta. Toca Registrar ENTRADA primero. Si olvidaste registrar entrada, avísale a tu supervisor.",
     gps_off: "No pudimos ver tu ubicación (GPS apagado o sin permiso). Se guardó, pero queda marcado para revisión.",
     far: "Estás lejos del patio de Polaris. Se guardó, pero queda marcado para revisión.",
@@ -145,8 +145,8 @@ const T = {
     need_name: "Enter your first and last name.", bad_phone: "Enter a 10 digit cell number.",
     welcome_back: "We found you by your phone number. Welcome back.",
     working: "One moment...", getting_gps: "Getting your location...",
-    in_ok: (t) => `Clocked in at ${t}. Have a good shift!`,
-    out_ok: (t, h) => `Clocked out at ${t}. You worked ${h} hours.`,
+    in_ok: (t) => `Clocked in! Time: ${t}`,
+    out_ok: (t, h) => `Clocked out! Time: ${t}\nYou worked ${h} hours.`,
     already_in: (t) => `You already clocked in at ${t}. When you finish, tap Clock OUT.`,
     not_in: "You are not clocked in. Tap Clock IN first. If you forgot to clock in, tell your supervisor.",
     gps_off: "We could not get your location (GPS off or not allowed). Saved, but flagged for review.",
